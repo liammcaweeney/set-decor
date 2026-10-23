@@ -1,0 +1,16 @@
+{
+  "name": "shoot-day-matcher",
+  "version": "1.0.0",
+  "private": true,
+  "type": "module",
+  "description": "Adds shoot day, date, call and wrap time from a one-line schedule PDF to a breakdown spreadsheet and sorts it into shooting order.",
+  "scripts": {
+    "start": "python3 -m http.server 8080",
+    "match": "node cli.mjs",
+    "vendor": "node -e \"const fs=require('fs');fs.mkdirSync('vendor',{recursive:true});for(const [f,t] of [['node_modules/pdfjs-dist/build/pdf.min.js','vendor/pdf.min.js'],['node_modules/pdfjs-dist/build/pdf.worker.min.js','vendor/pdf.worker.min.js'],['node_modules/exceljs/dist/exceljs.min.js','vendor/exceljs.min.js']])fs.copyFileSync(f,t)\""
+  },
+  "dependencies": {
+    "exceljs": "4.4.0",
+    "pdfjs-dist": "3.11.174"
+  }
+}

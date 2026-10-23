@@ -1,0 +1,251 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Shoot Day Matcher</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Barlow+Condensed:wght@500;600;700&family=Barlow:wght@400;500;600&family=Courier+Prime:wght@400;700&display=swap">
+<style>
+:root {
+  --paper: #f1f3f0; --sheet: #ffffff; --ink: #1b2226; --ink-soft: #55616a; --rule: #d5dbd8;
+  --accent: #0d6b6b; --accent-ink: #ffffff; --warn: #a8550c; --warn-bg: #fbeedd; --ok: #2c7a3f;
+  --font-display: "Barlow Condensed", "Arial Narrow", Arial, sans-serif;
+  --font-body: "Barlow", "Helvetica Neue", Arial, sans-serif;
+  --font-script: "Courier Prime", "Courier New", Courier, monospace;
+  color-scheme: light;
+}
+@media (prefers-color-scheme: dark) {
+  :root {
+    --paper: #141a1d; --sheet: #1c2428; --ink: #e4e9e6; --ink-soft: #9aa7ad; --rule: #2f3a3f;
+    --accent: #4fb8b2; --accent-ink: #0b1a1a; --warn: #f0a35a; --warn-bg: #3a2715; --ok: #7fd08f;
+    color-scheme: dark;
+  }
+}
+* { box-sizing: border-box; }
+body { margin: 0; background: var(--paper); color: var(--ink); font: 400 15px/1.5 var(--font-body); padding: 28px 16px 56px; }
+.wrap { max-width: 900px; margin: 0 auto; display: grid; gap: 24px; }
+h1, h3 { font-family: var(--font-display); margin: 0; line-height: 1.1; text-transform: uppercase; }
+h1 { font-size: 2.6rem; font-weight: 700; }
+h3 { font-size: 1rem; font-weight: 600; letter-spacing: 0.05em; }
+.lede { max-width: 64ch; color: var(--ink-soft); margin: 8px 0 0; }
+.eyebrow { font: 600 0.75rem/1 var(--font-display); letter-spacing: 0.14em; text-transform: uppercase; color: var(--accent); }
+
+.slots { display: grid; grid-template-columns: 1fr 1fr; gap: 16px; }
+.slot { position: relative; display: grid; gap: 6px; background: var(--sheet); border: 2px dashed var(--rule); border-radius: 6px; padding: 18px 20px; cursor: pointer; min-width: 0; }
+.slot:hover, .slot:focus-within, .slot.drag { border-color: var(--accent); }
+.slot.filled { border-style: solid; }
+.slot input { position: absolute; inset: 0; opacity: 0; cursor: pointer; width: 100%; }
+.slot-label { font: 600 1.15rem/1.1 var(--font-display); text-transform: uppercase; letter-spacing: 0.04em; }
+.slot-file { font-family: var(--font-script); font-size: 0.92rem; overflow-wrap: anywhere; color: var(--ink-soft); }
+.slot.filled .slot-file { color: var(--ink); font-weight: 700; }
+
+.options { display: flex; flex-wrap: wrap; align-items: end; gap: 16px; }
+.field { display: grid; gap: 4px; flex: 1 1 260px; }
+.field label { font: 600 0.8rem/1 var(--font-display); letter-spacing: 0.08em; text-transform: uppercase; }
+.field input { font: 400 1rem var(--font-body); padding: 10px 12px; border: 1px solid var(--rule); border-radius: 4px; background: var(--sheet); color: var(--ink); }
+.field input:focus { outline: 2px solid var(--accent); outline-offset: 1px; }
+.field small { color: var(--ink-soft); font-size: 0.82rem; }
+button { font: 600 1rem/1 var(--font-display); letter-spacing: 0.06em; text-transform: uppercase; background: var(--accent); color: var(--accent-ink); border: 0; border-radius: 4px; padding: 13px 20px; cursor: pointer; }
+button:disabled { opacity: .45; cursor: default; }
+button:focus-visible { outline: 3px solid var(--ink); outline-offset: 2px; }
+
+.status { padding: 10px 14px; border-radius: 4px; background: var(--sheet); border-left: 4px solid var(--accent); }
+.status.err { border-left-color: var(--warn); background: var(--warn-bg); }
+.summary { display: flex; flex-wrap: wrap; align-items: center; gap: 12px 28px; background: var(--sheet); border: 1px solid var(--rule); border-radius: 6px; padding: 16px 20px; }
+.stat { display: grid; gap: 2px; }
+.stat b { font: 700 1.7rem/1 var(--font-display); font-variant-numeric: tabular-nums; }
+.stat span { font-size: 0.78rem; letter-spacing: 0.08em; text-transform: uppercase; color: var(--ink-soft); }
+.stat.warn b { color: var(--warn); }
+.spacer { flex: 1 1 auto; }
+.cards { display: grid; grid-template-columns: 1fr 1fr; gap: 16px; }
+.card { background: var(--sheet); border: 1px solid var(--rule); border-radius: 6px; padding: 14px 16px; display: grid; gap: 10px; align-content: start; min-width: 0; }
+.card p { margin: 0; font-size: 0.85rem; color: var(--ink-soft); }
+.sheet-row { display: flex; justify-content: space-between; gap: 8px; font-size: 0.9rem; }
+.sheet-name { font-size: 0.8rem; font-weight: 600; text-transform: uppercase; letter-spacing: 0.06em; color: var(--ink-soft); }
+.tags { display: flex; flex-wrap: wrap; gap: 5px; }
+.tag { font: 700 0.8rem/1 var(--font-script); background: var(--warn-bg); color: var(--warn); padding: 4px 6px; border-radius: 3px; }
+.none-msg { font-size: 0.85rem; color: var(--ok); }
+@media (max-width: 640px) { .slots, .cards { grid-template-columns: 1fr; } h1 { font-size: 2rem; } }
+</style>
+</head>
+<body>
+<div class="wrap">
+  <header>
+    <span class="eyebrow">Breakdown &times; one-line schedule</span>
+    <h1>Shoot Day Matcher</h1>
+    <p class="lede">Add a breakdown spreadsheet and its shooting schedule PDF. You get the spreadsheet back sorted into shooting order, with the shoot day, date, call time and wrap time added next to each scene.</p>
+  </header>
+
+  <section class="slots">
+    <label class="slot" id="slot-xlsx">
+      <input type="file" id="in-xlsx" accept=".xlsx" title="">
+      <span class="slot-label">Breakdown (.xlsx)</span>
+      <span class="slot-file" id="name-xlsx">Drop the spreadsheet here, or click to choose</span>
+    </label>
+    <label class="slot" id="slot-pdf">
+      <input type="file" id="in-pdf" accept=".pdf" title="">
+      <span class="slot-label">Shooting schedule (.pdf)</span>
+      <span class="slot-file" id="name-pdf">Drop the one-liner PDF here, or click to choose</span>
+    </label>
+  </section>
+
+  <section class="options">
+    <div class="field">
+      <label for="column">Scene column title</label>
+      <input id="column" type="text" placeholder="Leave blank to find it automatically" autocomplete="off">
+      <small>Blank finds headers like Sc, SC., Sc No:, Scene, Scene No. Capitals and punctuation are ignored.</small>
+    </div>
+    <button id="go" disabled>Match &amp; sort</button>
+  </section>
+
+  <div class="status" id="status" hidden></div>
+  <section class="summary" id="summary" hidden></section>
+  <section class="cards" id="cards" hidden></section>
+</div>
+
+<script src="vendor/pdf.min.js"></script>
+<script src="vendor/exceljs.min.js"></script>
+<script src="core.js"></script>
+<script>
+(function () {
+  pdfjsLib.GlobalWorkerOptions.workerSrc = 'vendor/pdf.worker.min.js';
+  // isEvalSupported: false on getDocument closes the pdf.js 3.x malicious-PDF hole (GHSA-wgrm-67xf-hhpq)
+
+  const $ = (id) => document.getElementById(id);
+  const state = { xlsx: null, pdf: null, out: null, outName: null };
+  const esc = (s) => String(s ?? '').replace(/[&<>"]/g, (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;' }[c]));
+
+  function setStatus(msg, err) {
+    $('status').hidden = !msg;
+    $('status').textContent = msg || '';
+    $('status').classList.toggle('err', !!err);
+  }
+
+  function takeFiles(files) {
+    for (const f of files) {
+      if (/\.xlsx$/i.test(f.name)) state.xlsx = f;
+      else if (/\.pdf$/i.test(f.name)) state.pdf = f;
+      else setStatus(`"${f.name}" isn't an .xlsx or .pdf file.`, true);
+    }
+    $('name-xlsx').textContent = state.xlsx ? state.xlsx.name : 'Drop the spreadsheet here, or click to choose';
+    $('name-pdf').textContent = state.pdf ? state.pdf.name : 'Drop the one-liner PDF here, or click to choose';
+    $('slot-xlsx').classList.toggle('filled', !!state.xlsx);
+    $('slot-pdf').classList.toggle('filled', !!state.pdf);
+    $('go').disabled = !(state.xlsx && state.pdf);
+  }
+
+  ['xlsx', 'pdf'].forEach((k) => {
+    const input = $('in-' + k), slot = $('slot-' + k);
+    input.addEventListener('change', () => { takeFiles(input.files); input.value = ''; });
+    slot.addEventListener('dragover', (e) => { e.preventDefault(); slot.classList.add('drag'); });
+    slot.addEventListener('dragleave', () => slot.classList.remove('drag'));
+    slot.addEventListener('drop', (e) => { e.preventDefault(); slot.classList.remove('drag'); takeFiles(e.dataTransfer.files); });
+  });
+  document.addEventListener('dragover', (e) => e.preventDefault());
+  document.addEventListener('drop', (e) => { e.preventDefault(); if (e.dataTransfer.files.length) takeFiles(e.dataTransfer.files); });
+  $('go').addEventListener('click', run);
+  $('column').addEventListener('keydown', (e) => { if (e.key === 'Enter' && !$('go').disabled) run(); });
+
+  async function run() {
+    const columnName = $('column').value.trim();
+    $('go').disabled = true;
+    $('summary').hidden = $('cards').hidden = true;
+    setStatus('Reading the schedule…');
+    try {
+      const pdf = await pdfjsLib.getDocument({ data: new Uint8Array(await state.pdf.arrayBuffer()), isEvalSupported: false }).promise;
+      const sched = await SchedCore.parseSchedule(pdf);
+      if (!sched.sceneCount) return setStatus(`No scenes found in "${state.pdf.name}". It needs to be a text (not scanned) one-line schedule with INT/EXT on each scene line.`, true);
+
+      setStatus('Matching scenes in the breakdown…');
+      const wb = new ExcelJS.Workbook();
+      await wb.xlsx.load(await state.xlsx.arrayBuffer());
+      const report = SchedCore.processWorkbook(wb, sched, { columnName });
+      if (report.sheets.every((s) => s.skipped)) {
+        return setStatus(columnName
+          ? `No column titled "${columnName}" in any sheet of "${state.xlsx.name}". Check the spelling against the header row.`
+          : `Couldn't find a scene column in "${state.xlsx.name}". Type its header title in the box above and try again.`, true);
+      }
+      state.out = new Blob([await wb.xlsx.writeBuffer()], { type: 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet' });
+      state.outName = state.xlsx.name.replace(/\.xlsx$/i, '') + ' - shoot order.xlsx';
+      render(sched, report);
+      setStatus('');
+    } catch (e) {
+      console.error(e);
+      setStatus(`Couldn't process these files: ${e && e.message ? e.message : e}`, true);
+    } finally {
+      $('go').disabled = !(state.xlsx && state.pdf);
+    }
+  }
+
+  function render(sched, report) {
+    const used = report.sheets.filter((s) => !s.skipped);
+    const scenes = used.reduce((a, s) => a + s.scenes, 0);
+    const matched = used.reduce((a, s) => a + s.matched, 0);
+    const notInSchedule = used.reduce((a, s) => a + s.unmatched.length, 0);
+    const notInBreakdown = report.unmatchedSchedule.length;
+
+    $('summary').hidden = false;
+    $('summary').innerHTML = `
+      <div class="stat"><b>${sched.days.filter((d) => !d.unscheduled).length}</b><span>Shoot days</span></div>
+      <div class="stat"><b>${matched}/${scenes}</b><span>Scenes matched</span></div>
+      <div class="stat ${notInSchedule ? 'warn' : ''}"><b>${notInSchedule}</b><span>Not in schedule</span></div>
+      <div class="stat ${notInBreakdown ? 'warn' : ''}"><b>${notInBreakdown}</b><span>Not in breakdown</span></div>
+      <span class="spacer"></span>
+      <button id="dl">Download Excel file (.xlsx)</button>`;
+    $('dl').addEventListener('click', download);
+
+    $('cards').hidden = false;
+    $('cards').innerHTML = `
+      <div class="card">
+        <h3>Breakdown scenes not in the schedule</h3>
+        <p>These rows say "Not in schedule" and sit at the bottom of their sheet.</p>
+        ${report.sheets.map((sh) => sh.skipped
+          ? `<div><div class="sheet-name">${esc(sh.name)}</div><p>Left as is (no scene column).</p></div>`
+          : `<div style="display:grid;gap:6px">
+              <div class="sheet-row"><span class="sheet-name">${esc(sh.name)}</span><span>${sh.matched}/${sh.scenes}</span></div>
+              ${sh.unmatched.length ? `<div class="tags">${sh.unmatched.map((u) => `<span class="tag">${esc(u)}</span>`).join('')}</div>` : '<span class="none-msg">All matched</span>'}
+            </div>`).join('')}
+      </div>
+      <div class="card">
+        <h3>Schedule scenes not in the breakdown</h3>
+        ${notInBreakdown
+          ? `<div class="tags">${report.unmatchedSchedule.map((u) => `<span class="tag" title="${esc(u.day.label)}">${esc(u.field)}</span>`).join('')}</div>`
+          : '<span class="none-msg">Every scheduled scene is in the breakdown</span>'}
+        ${report.letterFallbacks.length ? `<p>Lettered scenes with no row of their own were added to the plain scene's row: ${report.letterFallbacks.map((f) => `<b>${esc(f.from)}</b> &rarr; ${esc(f.to)}`).join(', ')}</p>` : ''}
+        <p>Scene letters are dropped when there's no exact match: a schedule 128A with no row of its own goes on row 128, and a breakdown row 7a goes with schedule scene 7. Split scenes list every day they shoot and sort by the first.</p>
+      </div>`;
+  }
+
+  async function download() {
+    // Chrome/Edge: a real "Save as" dialog, locked to .xlsx
+    if (window.showSaveFilePicker) {
+      try {
+        const handle = await showSaveFilePicker({
+          suggestedName: state.outName,
+          types: [{ description: 'Excel workbook', accept: { 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet': ['.xlsx'] } }],
+        });
+        const w = await handle.createWritable();
+        await w.write(state.out);
+        await w.close();
+        setStatus(`Saved "${handle.name}".`);
+        return;
+      } catch (e) {
+        if (e && e.name === 'AbortError') return;
+      }
+    }
+    // Safari: an xlsx MIME type makes "Open safe files after downloading" hand it to Numbers,
+    // which converts it to .numbers — a generic type keeps it as a plain .xlsx download
+    const a = document.createElement('a');
+    a.href = URL.createObjectURL(new Blob([state.out], { type: 'application/octet-stream' }));
+    a.download = state.outName;
+    setStatus(`Downloaded "${state.outName}" to your Downloads folder. Open it with Excel (right-click > Open With) if your Mac defaults to Numbers.`);
+    document.body.appendChild(a);
+    a.click();
+    a.remove();
+    setTimeout(() => URL.revokeObjectURL(a.href), 5000);
+  }
+})();
+</script>
+</body>
+</html>

@@ -1,0 +1,8 @@
+node_modules/
+.DS_Store
+.playwright-mcp/
+# Production breakdowns and schedules must never be committed
+*.xlsx
+*.xls
+*.numbers
+*.pdf
