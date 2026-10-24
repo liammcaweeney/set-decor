@@ -191,6 +191,7 @@ button:focus-visible { outline: 3px solid var(--ink); outline-offset: 2px; }
       <div class="stat"><b>${matched}/${scenes}</b><span>Scenes matched</span></div>
       <div class="stat ${notInSchedule ? 'warn' : ''}"><b>${notInSchedule}</b><span>Not in schedule</span></div>
       <div class="stat ${notInBreakdown ? 'warn' : ''}"><b>${notInBreakdown}</b><span>Not in breakdown</span></div>
+      <div class="stat ${report.newScenes.length ? 'warn' : ''}"><b>${report.newScenes.length}</b><span>New scenes to read</span></div>
       <span class="spacer"></span>
       <button id="dl">Download Excel file (.xlsx)</button>`;
     $('dl').addEventListener('click', download);
@@ -208,12 +209,18 @@ button:focus-visible { outline: 3px solid var(--ink); outline-offset: 2px; }
             </div>`).join('')}
       </div>
       <div class="card">
+        <h3>New scenes to read</h3>
+        ${report.newScenes.length
+          ? `<p>Lettered scenes in the schedule (like 128A) with no row in the breakdown are new to the script. Each now has its own highlighted row in shooting order, ready to break down.</p>
+             <div class="tags">${report.newScenes.map((n) => `<span class="tag" title="${esc([n.ie, n.set, n.tod].filter(Boolean).join(' '))}">${esc(n.scene)} &middot; ${esc(n.days.join(' + '))}</span>`).join('')}</div>`
+          : '<span class="none-msg">No new lettered scenes</span>'}
+      </div>
+      <div class="card">
         <h3>Schedule scenes not in the breakdown</h3>
         ${notInBreakdown
           ? `<div class="tags">${report.unmatchedSchedule.map((u) => `<span class="tag" title="${esc(u.day.label)}">${esc(u.field)}</span>`).join('')}</div>`
           : '<span class="none-msg">Every scheduled scene is in the breakdown</span>'}
-        ${report.letterFallbacks.length ? `<p>Lettered scenes with no row of their own were added to the plain scene's row: ${report.letterFallbacks.map((f) => `<b>${esc(f.from)}</b> &rarr; ${esc(f.to)}`).join(', ')}</p>` : ''}
-        <p>Scene letters are dropped when there's no exact match: a schedule 128A with no row of its own goes on row 128, and a breakdown row 7a goes with schedule scene 7. Split scenes list every day they shoot and sort by the first.</p>
+        <p>A breakdown row 7a with no exact match goes with schedule scene 7. Split scenes list every day they shoot and sort by the first.</p>
       </div>`;
   }
 

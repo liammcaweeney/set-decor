@@ -55,8 +55,8 @@ for (const s of report.sheets) {
   if (s.skipped) { console.log(`  ${s.name}: left as is (no scene column)`); continue; }
   console.log(`  ${s.name}: ${s.matched}/${s.scenes} matched${s.unmatched.length ? ` — not in schedule: ${s.unmatched.join(', ')}` : ''}`);
 }
-if (report.letterFallbacks.length) {
-  console.log(`  Lettered scenes scheduled against the plain scene: ${report.letterFallbacks.map((f) => `${f.from} -> ${f.to}`).join(', ')}`);
+if (report.newScenes.length) {
+  console.log(`  NEW SCENES added to the script (highlighted rows, read these): ${report.newScenes.map((n) => `${n.scene} (${n.days.join(' + ')})`).join(', ')}`);
 }
 if (report.unmatchedSchedule.length) {
   console.log(`  In schedule but not in breakdown: ${report.unmatchedSchedule.map((u) => u.field).join(', ')}`);

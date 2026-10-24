@@ -175,7 +175,7 @@
         for (const p of sc.parsed) {
           const k = keyOf(p);
           if (!occ.has(k)) occ.set(k, []);
-          occ.get(k).push({ day, dayIndex: di, order: sc.order, part: p.part, field: sc.field });
+          occ.get(k).push({ day, dayIndex: di, order: sc.order, part: p.part, field: sc.field, ie: sc.ie, set: sc.set, tod: sc.tod });
         }
       });
     });
@@ -243,7 +243,7 @@
   }
 
   function processWorkbook(wb, sched, opts = {}) {
-    const report = { sheets: [], unmatchedSchedule: [], letterFallbacks: [] };
+    const report = { sheets: [], unmatchedSchedule: [], newScenes: [] };
     const usedOrders = new Set();
     const sheets = [];
 
@@ -274,24 +274,31 @@
       sheets.push({ ws, hdr, maxCol, last, blocks });
     });
 
-    // A lettered schedule scene (128A) with no row of its own in the breakdown is scheduled
-    // against the plain scene (128) instead, so that row picks up both shoot days
-    const inBreakdown = new Set();
-    for (const sh of sheets) if (!sh.skipped) for (const b of sh.blocks) for (const p of b.parsed) {
-      inBreakdown.add(keyOf({ ...p, ep: sched.episodic ? (p.ep ?? b.rowEp) : null }));
-    }
-    const occ = new Map([...sched.occ].map(([k, v]) => [k, v.slice()]));
+    // A lettered schedule scene (128A) with no row of its own is a scene newly added to the script:
+    // it gets a new, highlighted row in shooting order so it can be read and broken down
+    const used = sheets.filter((sh) => !sh.skipped);
+    const keysIn = (sh) => {
+      const s = new Set();
+      for (const b of sh.blocks) for (const p of b.parsed) s.add(keyOf({ ...p, ep: sched.episodic ? (p.ep ?? b.rowEp) : null }));
+      return s;
+    };
+    used.forEach((sh) => { sh.keys = keysIn(sh); });
     for (const [k, list] of sched.occ) {
       const [ep, num, suf] = k.split('|');
-      if (!suf || inBreakdown.has(k)) continue;
-      const base = `${ep}|${num}|`;
-      if (!inBreakdown.has(base)) continue;
-      if (!occ.has(base)) occ.set(base, []);
-      occ.get(base).push(...list);
-      occ.get(base).sort((x, y) => x.order - y.order);
-      report.letterFallbacks.push({ from: list[0].field, to: (ep ? ep + '.' : '') + num });
+      if (!suf || used.some((sh) => sh.keys.has(k))) continue;
+      // Goes on the sheet(s) holding the plain scene, else the episode's sheet(s), else the first sheet
+      const epOf = (sh) => sh.blocks.some((b) => b.parsed.some((p) => String(p.ep ?? b.rowEp ?? '') === ep));
+      let targets = used.filter((sh) => sh.keys.has(`${ep}|${num}|`));
+      if (!targets.length && ep) targets = used.filter(epOf);
+      if (!targets.length && !ep) targets = used.slice(0, 1);
+      if (!targets.length) continue;
+      const scene = (ep ? ep + '.' : '') + num + suf;
+      for (const sh of targets) {
+        sh.blocks.push({ rows: [], raw: scene, parsed: [], rowEp: ep ? +ep : null, idx: sh.blocks.length, added: list[0], hits: list.slice() });
+      }
+      report.newScenes.push({ scene, ...list[0], days: [...new Set(list.map((o) => o.day.label))], sheets: targets.map((sh) => sh.ws.name) });
     }
-    const schedForMatch = { ...sched, occ };
+    report.newScenes.sort((a, b) => a.order - b.order);
 
     for (const sh of sheets) {
       if (sh.skipped) { report.sheets.push({ name: sh.ws.name, skipped: true }); continue; }
@@ -299,7 +306,8 @@
       let matched = 0;
       const unmatched = [];
       for (const b of blocks) {
-        b.hits = b.parsed.length ? matchScene(schedForMatch, b.parsed, b.rowEp) : [];
+        if (b.added) { b.hits.forEach((h) => usedOrders.add(h.order)); continue; }
+        b.hits = b.parsed.length ? matchScene(sched, b.parsed, b.rowEp) : [];
         if (b.hits.length) { matched++; b.hits.forEach((h) => usedOrders.add(h.order)); }
         else if (b.raw) unmatched.push(b.raw);
       }
@@ -311,7 +319,7 @@
 
       rewriteSheet(ws, hdr, last, maxCol, sorted);
       report.sheets.push({
-        name: ws.name, skipped: false, scenes: blocks.filter((b) => b.raw).length, matched, unmatched,
+        name: ws.name, skipped: false, scenes: blocks.filter((b) => b.raw && !b.added).length, matched, unmatched,
         rows: sorted.map((b) => ({ raw: b.raw, ep: b.rowEp, hits: b.hits })),
       });
     }
@@ -344,7 +352,10 @@
     for (let r = 1; r <= hdr.row; r++) rowMap.set(r, r);
     let nr = hdr.row + 1;
     const plan = [];
-    for (const b of sorted) b.rows.forEach((r, i) => { rowMap.set(r, nr); plan.push({ from: r, to: nr, block: b, first: i === 0 }); nr++; });
+    for (const b of sorted) {
+      if (b.added) { plan.push({ from: null, to: nr++, block: b, first: true }); continue; }
+      b.rows.forEach((r, i) => { rowMap.set(r, nr); plan.push({ from: r, to: nr, block: b, first: i === 0 }); nr++; });
+    }
 
     const snaps = new Map();
     for (let r = 1; r <= last; r++) snaps.set(r, snapshotRow(ws, r, maxCol));
@@ -380,8 +391,12 @@
     });
 
     for (const p of plan) {
-      const snap = snaps.get(p.from);
+      const snap = p.from != null ? snaps.get(p.from) : newSceneSnap(p.block, maxCol, hdr.col);
       write(p.to, snap);
+      if (p.block.added) {
+        const a = p.block.added;
+        ws.getRow(p.to).getCell(hdr.col).note = `NEW SCENE added to the script — read it and break it down.\n${[a.ie, a.set, a.tod].filter(Boolean).join(' ')}`;
+      }
       const baseStyle = snap.cells[hdr.col - 1].style;
       const row = ws.getRow(p.to);
       const vals = p.first ? newColValues(p.block) : NEW_COLS.map(() => null);
@@ -420,6 +435,17 @@
       ws.dataValidations.model = out;
     }
     if (ws.autoFilter) ws.autoFilter = null;
+  }
+
+  const NEW_SCENE_FILL = { type: 'pattern', pattern: 'solid', fgColor: { argb: 'FFFFEB84' } };
+
+  // A breakdown row for a scene the breakdown doesn't have yet: just the scene number, highlighted
+  function newSceneSnap(block, maxCol, sceneCol) {
+    const cells = [];
+    for (let c = 1; c <= maxCol; c++) {
+      cells.push({ v: c === sceneCol ? block.raw : null, style: { fill: NEW_SCENE_FILL, font: c === sceneCol ? { bold: true } : undefined } });
+    }
+    return { cells, height: undefined, hidden: false };
   }
 
   function newColValues(block) {
